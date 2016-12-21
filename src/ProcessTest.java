@@ -1,9 +1,18 @@
 import org.opencv.imgproc.*;
 import org.opencv.core.*;
 import org.opencv.core.Point;
-import org.opencv.core.Scalar;
 import org.opencv.*;
-
+import java.awt.Color;
+import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.awt.image.WritableRaster;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.InputStream;
 import java.awt.*;
 import java.awt.List;
 import java.awt.image.BufferedImage;
@@ -13,14 +22,18 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.ImageIcon;
 import javax.swing.JPanel;
+import java.util.Date;
+import javax.swing.JScrollPane;
 import javax.imageio.*;
 import javax.imageio.stream.ImageOutputStream;
-
+import java.util.concurrent.TimeUnit;
 import java.awt.image.DataBufferByte;
+import org.opencv.videoio.VideoCapture;  
 //"C:/Users/HP-Desktop/Documents/Peter/WPISampleTowerImage.jpg"
 
 public class ProcessTest extends JPanel{
 	
+	//static VideoCapture camera;
 	static Mat originalImage;
 	static MatOfPoint finalTarget; //a global variable representing the image after is is narrowed to one contour
 	final static double horizontalCameraAngle = 60;
@@ -35,6 +48,23 @@ public class ProcessTest extends JPanel{
 	static Scalar blue = new Scalar(255,0,0);
 	static Scalar red = new Scalar(0,0,255);
 	static Scalar yellow = new Scalar(0,255,255);
+	
+	public static Mat captureVideo(){
+		Date date = new Date();
+    	System.out.println("pre-capture: " + date.getTime());
+		System.loadLibrary(Core.NATIVE_LIBRARY_NAME);
+		VideoCapture camera = new VideoCapture(0); 
+		camera.set(WIDTH, 320);
+		camera.set(HEIGHT, 240);
+		Mat frame = new Mat(160, 120, CvType.CV_8UC3);
+        camera.read(frame);
+        originalImage = frame;
+        camera.release();
+        date = new Date();
+    	System.out.println("post-capture: " + date.getTime());
+
+        return frame;
+	}
 	
 	public static BufferedImage grabImage(){ //********gets an image from the computer**********
 		BufferedImage image;
@@ -60,6 +90,8 @@ public class ProcessTest extends JPanel{
 	}
 	
 	public static Mat colorFilter(Mat input){ //**********a simple rgb filter applied to the input matrix*********
+		Date date = new Date();
+    	System.out.println("pre-color: " + date.getTime());
 		Mat binaryOut = new Mat(input.height(), input.width(), CvType.CV_8UC1); //a binary image to return after filtering
 		int count = 0; //number of pixels that pass through the filter
 		for(int i = 0; i<input.height();i++){
@@ -69,7 +101,7 @@ public class ProcessTest extends JPanel{
 				double redValue = data[2];
 				double[] high = new double[1]; high[0] = 255; //preset used to write to the binary image
 				double[] low = new double[1]; low[0] = 0; //preset used to write to the binary image
-				if (greenValue > 110 && redValue <100) { //***the filter itself***
+				if (greenValue > 100 && redValue <200) { //***the filter itself***
 					binaryOut.put(i, j, high); 
 					count++;
 				}else {
@@ -81,10 +113,14 @@ public class ProcessTest extends JPanel{
 		/*Mat image32S = new Mat();    //Experimental to get the findContours method below to work
 		binaryOut.convertTo(image32S, CvType.CV_32SC1);
 		System.out.println("converted");*/
+		date = new Date();
+    	System.out.println("post-color: " + date.getTime());
 		return binaryOut;
 	}
 	
 	public static Mat contourDetection(Mat input){ //**********finding the target******************
+		Date date = new Date();
+    	System.out.println("pre-contour: " + date.getTime());
 		ArrayList<MatOfPoint> contours = new ArrayList<MatOfPoint>(); //an expandable container for the contours
 		Mat hierarchy = new Mat(); //a matrix that details the hierarchy of nested contours not used in this example
 		System.out.println("about to find contours3"); //debug
@@ -116,15 +152,19 @@ public class ProcessTest extends JPanel{
 		
 		for(int i = 0; i<contours.get(indexLargest).total(); i++){     //draw the pixels of the largest contour on the new black mat
 			double[] pixelData = contours.get(indexLargest).get(i, 0); //grabs the contents of the matrix, a point
-			System.out.println("X: " + pixelData[0] + " Y: " + pixelData[1]); //print pixeldata
+			//System.out.println("X: " + pixelData[0] + " Y: " + pixelData[1]); //print pixeldata
 			int pointX = (int) pixelData[1]; int pointY = (int) pixelData[0]; //turn x and y doubles into ints
 			singleTargetMat.put(pointX, pointY,high); //turn these pixels white
 		}
 		finalTarget = contours.get(indexLargest); //fill a global variable for other methods to use
+		date = new Date();
+    	System.out.println("post-contour: " + date.getTime());
 		return singleTargetMat;
 	}
 	
 	public static Mat errorCalculation(Mat input){ //*********calculating the offset of the target from center of image******
+		Date date = new Date();
+    	System.out.println("pre-error calc: " + date.getTime());
 		Mat processed = new Mat(input.height(),input.width(),CvType.CV_8UC3); //the final mat 8bit 3channel
 		for(int i = 0; i<input.height(); i++){ //set all the pixels low
 			for(int j = 0; j< input.width();j++){
@@ -155,7 +195,7 @@ public class ProcessTest extends JPanel{
 			TR = Math.sqrt((width-pointX)*(width-pointX) + (pointY)*(pointY));
 			BL = Math.sqrt((pointX)*(pointX) + (height-pointY)*(height-pointY));
 			BR = Math.sqrt((width-pointX)*(width-pointX) + (height-pointY)*(height-pointY));
-			if(TL < distanceTL){distanceTL = TL; indexTL = i; System.out.println(distanceTL + " " +pointX+ " " + pointY);}
+			if(TL < distanceTL){distanceTL = TL; indexTL = i;} //System.out.println(distanceTL + " " +pointX+ " " + pointY);}
 			if(TR < distanceTR){distanceTR = TR; indexTR = i;}
 			if(BL < distanceBL){distanceBL = BL; indexBL = i;}
 			if(BR < distanceBR){distanceBR = BR; indexBR = i;}
@@ -209,11 +249,14 @@ public class ProcessTest extends JPanel{
 		Imgproc.circle(processed, targetCenter, 8, blue, 3);
 		
 		Imgproc.putText(processed, "X Degree Correction: " + xDegreeCorrection, blcorner, 1, 1, white);
-		
+		date = new Date();
+    	System.out.println("post-error calc: " + date.getTime());
 		return processed; //returns the final mat
 	}
 	
 	public static Mat superImpose(Mat input){ //*********Draw the lines on the originalImage*******
+		Date date = new Date();
+    	System.out.println("pre-super impose: " + date.getTime());
 		Mat superImposed = new Mat(input.height(),input.width(),CvType.CV_8UC3);
 		superImposed = originalImage;
 		Point textLocation = new Point(5,input.height()-25);
@@ -230,13 +273,16 @@ public class ProcessTest extends JPanel{
 		Imgproc.circle(superImposed, targetCenterGlobal, 8, blue, 3);
 		Imgproc.putText(superImposed, "X Degree Correction: " + xDegreeCorrectionGlobal, textLocation, 1, 1, white);
 		Imgproc.putText(superImposed, "Y Degree Correction: " + yDegreeCorrectionGlobal, new Point(5,input.height()-10), 1, 1, white);
+		date = new Date();
+    	System.out.println("post-super imposed: " + date.getTime());
 		return superImposed;
 	}
 	
 	public static BufferedImage MatToBufferedImage(Mat mat) { //**********changes a mat into a buffered image********
 	    // Fastest code
 	    // output can be assigned either to a BufferedImage or to an Image
-
+		Date date = new Date();
+    	System.out.println("pre-mat to img: " + date.getTime());
 	    int type = BufferedImage.TYPE_BYTE_GRAY;
 	    if ( mat.channels() > 1 ) {
 	        type = BufferedImage.TYPE_3BYTE_BGR;
@@ -247,44 +293,109 @@ public class ProcessTest extends JPanel{
 	    BufferedImage image = new BufferedImage(mat.cols(),mat.rows(), type);
 	    final byte[] targetPixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
 	    System.arraycopy(b, 0, targetPixels, 0, b.length);  
+	    date = new Date();
+    	System.out.println("post-mat to img: " + date.getTime());
+
 	    return image;
 	}
 	
 	public ProcessTest(){   //yuck, a gui
-		BufferedImage original = grabImage();
-	    BufferedImage processed = MatToBufferedImage(colorFilter(BufferedImageToMat(grabImage())));
-	    BufferedImage finalImage = MatToBufferedImage(contourDetection(colorFilter(BufferedImageToMat(grabImage()))));
-	    BufferedImage errorImage = MatToBufferedImage(superImpose(errorCalculation(contourDetection(colorFilter(BufferedImageToMat(grabImage()))))));
-	    ImageIcon icon = new ImageIcon(original);
-	    ImageIcon output = new ImageIcon(processed);
-	    ImageIcon finalOutput = new ImageIcon(finalImage);
+		//BufferedImage original = grabImage();
+		//JPanel placeHolderPanel = new JPanel();
+		//JScrollPane pane = new JScrollPane();
+		Mat imageToProcess = captureVideo();
+		//BufferedImage original = MatToBufferedImage(imageToProcess);
+	    //BufferedImage processed = MatToBufferedImage(colorFilter(imageToProcess));      //BufferedImageToMat(grabImage())));
+	    //BufferedImage finalImage = MatToBufferedImage(contourDetection(colorFilter(imageToProcess)));     //BufferedImageToMat(grabImage()))));
+	    BufferedImage errorImage = MatToBufferedImage(superImpose(errorCalculation(contourDetection(colorFilter(imageToProcess)))));        //BufferedImageToMat(grabImage()))))));
+	    //ImageIcon icon = new ImageIcon(original);
+	    //ImageIcon output = new ImageIcon(processed);
+	    //ImageIcon finalOutput = new ImageIcon(finalImage);
 	    ImageIcon errorOutput = new ImageIcon(errorImage);
-	    JLabel originalImage = new JLabel();
-	    JLabel processedImage = new JLabel();
-	    JLabel finalOutputLabel = new JLabel();
+	    //JLabel originalImage = new JLabel();
+	    //JLabel processedImage = new JLabel();
+	    //JLabel finalOutputLabel = new JLabel();
 	    JLabel errorOutputLabel = new JLabel();
-	    originalImage.setIcon(icon);
-	    processedImage.setIcon(output);
-	    finalOutputLabel.setIcon(finalOutput);
+	    //originalImage.setIcon(icon);
+	    //processedImage.setIcon(output);
+	    //finalOutputLabel.setIcon(finalOutput);
 	    errorOutputLabel.setIcon(errorOutput);
-	    this.add(originalImage);
-	    this.add(processedImage);
-	    this.add(finalOutputLabel);
+	    //this.add(originalImage);
+	    //this.add(processedImage);
+	    //this.add(finalOutputLabel);
 	    this.add(errorOutputLabel);
-        
+	    //pane.add(placeHolderPanel);
+	    //this.add(pane);
 	}
 	
 	public static void main(String[] args) {
 		
 		JFrame frame = new JFrame();
-	    frame.getContentPane().add(new ProcessTest());
+		frame.getContentPane().add(new ProcessTest());
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(700, 600);
+        frame.setVisible(true);
+        Date date = new Date();
+
+        /*try {
+            Thread.sleep(3000);
+            System.out.println("Waiting");
+        }
+        catch (InterruptedException ie) {
+            System.out.println("Exception handled");// Handle the exception
+        }
+        frame.getContentPane().removeAll();
+        frame.invalidate();
+    	frame.validate();
+        frame.repaint();
+        
+        try {
+            Thread.sleep(3000);
+            System.out.println("Waiting");
+        }
+        catch (InterruptedException ie) {
+            System.out.println("Exception handled");// Handle the exception
+        }
+        frame.getContentPane().add(new ProcessTest());
+        frame.invalidate();
+    	frame.validate();
+        frame.repaint();*/
+        
+        while(true){
+        	frame.getContentPane().removeAll();
+        	
+        	//frame.invalidate();
+        	//frame.validate();
+        	//frame.repaint();
+        	date = new Date();
+        	System.out.println("pre-process: " + date.getTime());
+		    frame.getContentPane().add(new ProcessTest());
+		    date = new Date();
+		    System.out.println("post-process: " + date.getTime());
+		    frame.invalidate();
+        	frame.validate();
+		    frame.repaint();
+		    date = new Date();
+		    System.out.println("post-paint: " + date.getTime());
+		    try {
+	            Thread.sleep(25);
+	            System.out.println("Waiting");
+	        }
+	        catch (InterruptedException ie) {
+	            System.out.println("Exception handled");// Handle the exception
+	        }
+		    
+		}
 	    
 	    //contourDetection(colorFilter(BufferedImageToMat(grabImage())));
 	    
-	    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(700, 540);
-        frame.setVisible(true);
+	    
         
-        ;
+        /*while(true){
+        	frame.invalidate();
+        	frame.validate();
+        	frame.repaint();
+        }*/
+        
 	}	
 }
